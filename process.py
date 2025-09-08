@@ -160,6 +160,7 @@ def process_file(input_file, top_n_cards=20, top_n_cashiers=20,
         encrypted_file_target = output_file.replace(".xlsx", "_encrypted.xlsx")
         try:
             enc_path = encrypt_excel(output_file, encrypted_file_target, password)
+            last_encrypted_file = enc_path
         except Exception as e:
             # if everything fails, surface a helpful message
             raise RuntimeError(f"Failed to encrypt '{output_file}': {e}")
@@ -179,3 +180,5 @@ def process_file(input_file, top_n_cards=20, top_n_cashiers=20,
         print(f"Saved and encrypted {enc_path}")
 
     print(f"\nAll monthly reports created in '{output_folder}' folder.")
+
+    return output_folder, last_encrypted_file
