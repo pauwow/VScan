@@ -1,9 +1,15 @@
 import os
 import pandas as pd
 from datetime import datetime
+import secrets
+import string
 
 # optional imports for encryption - imported inside functions to avoid platform errors
 import io
+
+def generate_password(length=14):
+    alphabet = string.ascii_letters + string.digits  # alphanumeric only
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 def encrypt_excel(input_path, desired_output_path, password):
     # 1) Try Windows COM (requires pywin32 and real Excel installed; Windows only)
@@ -20,9 +26,6 @@ def encrypt_excel(input_path, desired_output_path, password):
         excel.Application.Quit()
         return out_abs
     except Exception as e_com:
-        # COM may not be available (non-Windows or no Excel installed) — fall through to next method
-        # print or log the error for debugging (optional)
-        # print("COM encryption failed:", e_com)
         pass
 
     # 2) Try msoffcrypto (best-effort)
@@ -33,21 +36,17 @@ def encrypt_excel(input_path, desired_output_path, password):
             out_abs = os.path.abspath(desired_output_path)
             with open(out_abs, "wb") as f_out:
                 try:
-                    # try positional password (common)
                     office_file.encrypt(f_out, password)
                 except TypeError:
-                    # try keyword form
                     office_file.encrypt(f_out, password=password)
         return out_abs
-    except Exception as e_msoff:
-        # print("msoffcrypto encryption failed:", e_msoff)
+    except Exception:
         pass
 
     # 3) Fallback: AES encrypt the file bytes with pyAesCrypt (creates .aes)
     try:
         import pyAesCrypt
         bufferSize = 64 * 1024
-        # ensure output name ends with .aes
         if not desired_output_path.lower().endswith(".aes"):
             out_aes = desired_output_path + ".aes"
         else:
@@ -55,18 +54,12 @@ def encrypt_excel(input_path, desired_output_path, password):
         pyAesCrypt.encryptFile(input_path, out_aes, password, bufferSize)
         return os.path.abspath(out_aes)
     except Exception as e_aes:
-        # All methods failed
-        raise RuntimeError(
-            "Encryption failed with all methods. COM error: {}, msoffcrypto error: {}, pyAesCrypt error: {}"
-            .format(repr(e_com) if 'e_com' in locals() else "N/A",
-                    repr(e_msoff) if 'e_msoff' in locals() else "N/A",
-                    repr(e_aes))
-        )
+        raise RuntimeError(f"Encryption failed with all methods: {e_aes}")
 
 def process_file(input_file, top_n_cards=20, top_n_cashiers=20,
-                 output_folder="TopTransactionsPerMonth", password=None):
-    if not password:
-        raise ValueError("Password is required for encryption.")
+                 output_folder="TopTransactionsPerMonth"):
+    # Auto-generate password
+    password = generate_password()
 
     # Prepare folders
     os.makedirs(output_folder, exist_ok=True)
@@ -77,8 +70,6 @@ def process_file(input_file, top_n_cards=20, top_n_cashiers=20,
     # Read input (force card_no as string)
     df = pd.read_excel(input_file, dtype={"card_no": str})
     df["TransactionDateTime"] = pd.to_datetime(df["TransactionDateTime"])
-
-    # YearMonth for grouping (we'll drop it from RawData when saving)
     df["YearMonth"] = df["TransactionDateTime"].dt.to_period("M")
 
     has_trans_total = "trans_total" in df.columns
@@ -87,10 +78,8 @@ def process_file(input_file, top_n_cards=20, top_n_cashiers=20,
         month_data = month_data.sort_values("TransactionDateTime").copy()
         month_data["card_no"] = month_data["card_no"].astype(str)
 
-        # Write unencrypted Excel first
         output_file = os.path.join(output_folder, f"top_transaction_{month}.xlsx")
         with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
-            # RawData without YearMonth
             raw_data = month_data.drop(columns=["YearMonth"])
             raw_data.to_excel(writer, sheet_name="RawData", index=False)
 
@@ -156,23 +145,19 @@ def process_file(input_file, top_n_cards=20, top_n_cashiers=20,
                 cashier_summaries.append(summary)
             pd.DataFrame(cashier_summaries).to_excel(writer, sheet_name="TopCashiers", index=False)
 
-        # Try to encrypt (returns actual encrypted file path)
         encrypted_file_target = output_file.replace(".xlsx", "_encrypted.xlsx")
         try:
             enc_path = encrypt_excel(output_file, encrypted_file_target, password)
             last_encrypted_file = enc_path
         except Exception as e:
-            # if everything fails, surface a helpful message
             raise RuntimeError(f"Failed to encrypt '{output_file}': {e}")
 
-        # remove unencrypted input file (if it still exists)
         if os.path.exists(output_file):
             try:
                 os.remove(output_file)
             except Exception:
                 pass
 
-        # Log timestamp, input file, encrypted output and password
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(log_file, "a", encoding="utf-8") as log:
             log.write(f"[{timestamp}] Input: {os.path.basename(input_file)} | Output: {os.path.basename(enc_path)} | Password: {password}\n")
@@ -181,4 +166,4 @@ def process_file(input_file, top_n_cards=20, top_n_cashiers=20,
 
     print(f"\nAll monthly reports created in '{output_folder}' folder.")
 
-    return output_folder, last_encrypted_file
+    return output_folder, last_encrypted_file, password
