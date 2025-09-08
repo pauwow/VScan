@@ -1,5 +1,8 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import os
+import subprocess
+import sys
 from process import process_file
 
 def run_app():
@@ -21,8 +24,30 @@ def run_app():
         return
 
     try:
-        process_file(file_path, top_n_cards=top_cards, top_n_cashiers=top_cashiers, password=password)
-        messagebox.showinfo("Success", "Processing complete! Check the TopTransactionsPerMonth folder.")
+        # Process file
+        output_folder, last_output_file = process_file(
+            file_path, top_n_cards=top_cards, top_n_cashiers=top_cashiers, password=password
+        )
+
+        # Show report summary
+        preview_text.config(state="normal")
+        preview_text.delete(1.0, tk.END)
+        preview_text.insert(tk.END, "=== Report Summary Preview ===\n\n")
+        preview_text.insert(tk.END, f"Source File: {os.path.basename(file_path)}\n")
+        preview_text.insert(tk.END, f"Top N Cards: {top_cards}\n")
+        preview_text.insert(tk.END, f"Top N Cashiers: {top_cashiers}\n")
+        preview_text.insert(tk.END, f"Output Folder: {output_folder}\n")
+        preview_text.insert(tk.END, f"Last Generated File: {os.path.basename(last_output_file)}\n")
+        preview_text.config(state="disabled")
+
+        # Enable open button with dynamic label
+        open_button.config(
+            state="normal",
+            text=f"Open {os.path.basename(last_output_file)}",
+            command=lambda: open_output_file(last_output_file)
+        )
+
+        messagebox.showinfo("Success", "Processing complete! Check the Report Summary Preview below.")
     except Exception as e:
         messagebox.showerror("Error", str(e))
 
@@ -36,6 +61,16 @@ def toggle_password():
         password_entry.config(show="")  # show actual text
     else:
         password_entry.config(show="*")  # mask with *
+
+def open_output_file(file_path):
+    """Open the output Excel file directly."""
+    try:
+        if os.name == "nt":  # Windows
+            os.startfile(file_path)
+        elif os.name == "posix":  # macOS/Linux
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", file_path])
+    except Exception as e:
+        messagebox.showerror("Error", f"Could not open file: {e}")
 
 # Tkinter window
 root = tk.Tk()
@@ -73,5 +108,14 @@ show_password_checkbox.grid(row=3, column=2, padx=5, pady=5, sticky="w")
 # Run button
 run_button = tk.Button(root, text="Run", command=run_app, bg="green", fg="white")
 run_button.grid(row=4, column=0, columnspan=3, pady=10)
+
+# Preview box
+tk.Label(root, text="Report Summary Preview:").grid(row=5, column=0, columnspan=3, sticky="w", padx=5, pady=(10, 0))
+preview_text = tk.Text(root, width=100, height=10, wrap="word", state="disabled", bg="#f9f9f9")
+preview_text.grid(row=6, column=0, columnspan=3, padx=5, pady=5)
+
+# Open file button (disabled by default)
+open_button = tk.Button(root, text="Open Output File", state="disabled")
+open_button.grid(row=7, column=0, columnspan=3, pady=5)
 
 root.mainloop()
