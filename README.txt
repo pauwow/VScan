@@ -56,6 +56,13 @@ It saves the results into an output folder called **TopTransactionsPerMonth**.
 -- Step 6: 
     - Input the Number of Top Cards and Top Cashiers to be Generated
 
+-- Step 7:
+    - Input password for encryption
+
+-- Step 8:
+    - Click Run
+
+
 
 
 
