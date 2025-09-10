@@ -7,4 +7,6 @@ redshift-connector>=2.0.0
 seaborn>=0.11.0
 msoffcrypto-tool>=5.0.0
 pyAesCrypt>=6.0.0
-pywin32>=306
+pywin32>=306; platform_system=="Windows"
+xlwings>=0.30.0; platform_system=="Windows"
+tk
