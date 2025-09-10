@@ -19,12 +19,15 @@ def run_app():
         return
 
     try:
-        # Process file (auto-generates password inside process.py)
-        output_folder, last_output_file, _ = process_file(
-            file_path, top_n_cards=top_cards, top_n_cashiers=top_cashiers
+        # Process file with encryption option
+        output_folder, last_output_file, password = process_file(
+            file_path,
+            top_n_cards=top_cards,
+            top_n_cashiers=top_cashiers,
+            encrypt=encrypt_var.get()
         )
 
-        # Show report summary (NO PASSWORD DISPLAYED)
+        # Show report summary
         preview_text.config(state="normal")
         preview_text.delete(1.0, tk.END)
         preview_text.insert(tk.END, "=== Report Summary Preview ===\n\n")
@@ -33,6 +36,11 @@ def run_app():
         preview_text.insert(tk.END, f"Top N Cashiers: {top_cashiers}\n")
         preview_text.insert(tk.END, f"Output Folder: {output_folder}\n")
         preview_text.insert(tk.END, f"Last Generated File: {os.path.basename(last_output_file)}\n")
+        if encrypt_var.get():
+            preview_text.insert(tk.END, "Encryption: ENABLED\n")
+            preview_text.insert(tk.END, "(Password saved in report_log.txt)\n")
+        else:
+            preview_text.insert(tk.END, "Encryption: DISABLED\n")
         preview_text.config(state="disabled")
 
         # Enable open button
@@ -84,17 +92,22 @@ cashiers_entry = tk.Entry(root, width=10)
 cashiers_entry.insert(0, "20")
 cashiers_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
 
+# Encryption option
+encrypt_var = tk.BooleanVar()
+encrypt_checkbox = tk.Checkbutton(root, text="Encrypt Output File", variable=encrypt_var)
+encrypt_checkbox.grid(row=3, column=0, columnspan=3, pady=5)
+
 # Run button
 run_button = tk.Button(root, text="Run", command=run_app, bg="green", fg="white")
-run_button.grid(row=3, column=0, columnspan=3, pady=10)
+run_button.grid(row=4, column=0, columnspan=3, pady=10)
 
 # Preview box
-tk.Label(root, text="Report Summary Preview:").grid(row=4, column=0, columnspan=3, sticky="w", padx=5, pady=(10, 0))
+tk.Label(root, text="Report Summary Preview:").grid(row=5, column=0, columnspan=3, sticky="w", padx=5, pady=(10, 0))
 preview_text = tk.Text(root, width=100, height=10, wrap="word", state="disabled", bg="#f9f9f9")
-preview_text.grid(row=5, column=0, columnspan=3, padx=5, pady=5)
+preview_text.grid(row=6, column=0, columnspan=3, padx=5, pady=5)
 
 # Open file button (disabled by default)
 open_button = tk.Button(root, text="Open Output File", state="disabled")
-open_button.grid(row=6, column=0, columnspan=3, pady=5)
+open_button.grid(row=7, column=0, columnspan=3, pady=5)
 
 root.mainloop()
