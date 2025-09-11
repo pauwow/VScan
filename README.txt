@@ -54,13 +54,14 @@ It saves the results into an output folder called **TopTransactionsPerMonth**.
     - Upload .csv/.xlsx
 
 -- Step 6: 
-    - Input the Number of Top Cards and Top Cashiers to be Generated
+    - Input the Number of Top Cards and/or Top Cashiers to be Generated
 
 -- Step 7:
-    - Input password for encryption
+    - Check box for encryption or not
 
 -- Step 8:
-    - Click Run
+    - Click Generate Report
+
 
 
 
