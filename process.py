@@ -72,7 +72,7 @@ def summarize_entities(df, entity_col, date_col="transaction_datetime", top_n=20
         low_count = int(day_counts.min()) if not day_counts.empty else 0
 
         summary = {
-            entity_col.capitalize(): str(entity),
+            entity_col.capitalize(): str(entity) if entity_col == "card_no" else entity,
             "Month": str(entity_data["YearMonth"].iloc[0]),
             "Total Transactions": len(entity_data),
             "First Transaction": entity_data[date_col].min(),
@@ -116,6 +116,10 @@ def summarize_entities(df, entity_col, date_col="transaction_datetime", top_n=20
 
 def process_dynamic_schema(df, output_file, top_n_cards=20, top_n_cashiers=20):
     with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+        # Ensure card_no stays as string to prevent rounding/scientific notation
+        if "card_no" in df.columns:
+            df["card_no"] = df["card_no"].astype(str)
+
         # Raw data
         df.to_excel(writer, sheet_name="RawData", index=False)
 
@@ -150,6 +154,10 @@ def process_file(input_file, top_n_cards=20, top_n_cashiers=20, encrypt=True):
     log_file = os.path.join(password_log_folder, "password_log.txt")
 
     df = pd.read_excel(input_file)
+
+    # Ensure card_no stays string early
+    if "card_no" in df.columns:
+        df["card_no"] = df["card_no"].astype(str)
 
     # Determine yearmonth range from transaction date
     date_col = None
