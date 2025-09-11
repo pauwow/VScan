@@ -3,22 +3,52 @@ from tkinter import filedialog, messagebox
 import os
 import subprocess
 import sys
+import pandas as pd
 from process import process_file
+
+def detect_schema(file_path):
+    """Check if the uploaded file matches the new schema or the old one."""
+    try:
+        df = pd.read_excel(file_path, nrows=0)
+        headers = set(df.columns.str.lower())
+
+        new_schema_headers = {
+            "csn", "card_no", "transaction_type", "branch_name",
+            "transaction_code", "scheme_id", "transaction_datetime",
+            "post_date", "point_earned", "transaction_amount"
+        }
+
+        if new_schema_headers.issubset(headers):
+            return "new"
+        else:
+            return "old"
+    except Exception:
+        return "old"
 
 def run_app():
     file_path = file_entry.get()
-    try:
-        top_cards = int(cards_entry.get())
-        top_cashiers = int(cashiers_entry.get())
-    except ValueError:
-        messagebox.showerror("Error", "Please enter valid numbers for Top Cards and Top Cashiers.")
-        return
-
     if not file_path:
         messagebox.showerror("Error", "Please select an Excel file.")
         return
 
+    schema_type = detect_schema(file_path)
+
     try:
+        if schema_type == "new":
+            try:
+                top_cards = int(cards_entry.get())
+            except ValueError:
+                messagebox.showerror("Error", "Please enter a valid number for Top Cards.")
+                return
+            top_cashiers = None
+        else:
+            try:
+                top_cards = int(cards_entry.get())
+                top_cashiers = int(cashiers_entry.get())
+            except ValueError:
+                messagebox.showerror("Error", "Please enter valid numbers for Top Cards and Top Cashiers.")
+                return
+
         # Process file with encryption option
         output_folder, last_output_file, password = process_file(
             file_path,
@@ -32,13 +62,15 @@ def run_app():
         preview_text.delete(1.0, tk.END)
         preview_text.insert(tk.END, "=== Report Summary Preview ===\n\n")
         preview_text.insert(tk.END, f"Source File: {os.path.basename(file_path)}\n")
+        preview_text.insert(tk.END, f"Schema Type: {'New Schema' if schema_type == 'new' else 'Old Schema'}\n")
         preview_text.insert(tk.END, f"Top N Cards: {top_cards}\n")
-        preview_text.insert(tk.END, f"Top N Cashiers: {top_cashiers}\n")
+        if schema_type == "old":
+            preview_text.insert(tk.END, f"Top N Cashiers: {top_cashiers}\n")
         preview_text.insert(tk.END, f"Output Folder: {output_folder}\n")
         preview_text.insert(tk.END, f"Last Generated File: {os.path.basename(last_output_file)}\n")
         if encrypt_var.get():
             preview_text.insert(tk.END, "Encryption: ENABLED\n")
-            preview_text.insert(tk.END, "(Password saved in report_log.txt)\n")
+            preview_text.insert(tk.END, "(Password saved in password_log.txt)\n")
         else:
             preview_text.insert(tk.END, "Encryption: DISABLED\n")
         preview_text.config(state="disabled")
@@ -58,6 +90,20 @@ def browse_file():
     file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx")])
     file_entry.delete(0, tk.END)
     file_entry.insert(0, file_path)
+
+    # Dynamically update input fields based on schema
+    schema_type = detect_schema(file_path)
+
+    if schema_type == "new":
+        cards_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        cards_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        cashiers_label.grid_remove()
+        cashiers_entry.grid_remove()
+    else:
+        cards_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        cards_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        cashiers_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        cashiers_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
 
 def open_output_file(file_path):
     """Open the output Excel file directly."""
@@ -81,16 +127,20 @@ browse_button = tk.Button(root, text="Browse", command=browse_file)
 browse_button.grid(row=0, column=2, padx=5, pady=5)
 
 # Top N Cards
-tk.Label(root, text="Top N Cards:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+cards_label = tk.Label(root, text="Top N Cards:")
 cards_entry = tk.Entry(root, width=10)
 cards_entry.insert(0, "20")
-cards_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
 # Top N Cashiers
-tk.Label(root, text="Top N Cashiers:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+cashiers_label = tk.Label(root, text="Top N Cashiers:")
 cashiers_entry = tk.Entry(root, width=10)
 cashiers_entry.insert(0, "20")
-cashiers_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+
+# Hide both until a file is chosen
+cards_label.grid_remove()
+cards_entry.grid_remove()
+cashiers_label.grid_remove()
+cashiers_entry.grid_remove()
 
 # Encryption option
 encrypt_var = tk.BooleanVar()
@@ -98,7 +148,7 @@ encrypt_checkbox = tk.Checkbutton(root, text="Encrypt Output File", variable=enc
 encrypt_checkbox.grid(row=3, column=0, columnspan=3, pady=5)
 
 # Run button
-run_button = tk.Button(root, text="Run", command=run_app, bg="green", fg="white")
+run_button = tk.Button(root, text="Generate Report", command=run_app, bg="green", fg="white")
 run_button.grid(row=4, column=0, columnspan=3, pady=10)
 
 # Preview box
