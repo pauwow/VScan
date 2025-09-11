@@ -6,24 +6,19 @@ import sys
 import pandas as pd
 from process import process_file
 
-def detect_schema(file_path):
-    """Check if the uploaded file matches the new schema or the old one."""
+def detect_available_fields(file_path):
+    """Check available columns in the uploaded file and decide which inputs to show."""
     try:
         df = pd.read_excel(file_path, nrows=0)
         headers = set(df.columns.str.lower())
 
-        new_schema_headers = {
-            "csn", "card_no", "transaction_type", "branch_name",
-            "transaction_code", "scheme_id", "transaction_datetime",
-            "post_date", "point_earned", "transaction_amount"
+        available = {
+            "has_cards": "card_no" in headers,
+            "has_cashiers": "cashier" in headers,
         }
-
-        if new_schema_headers.issubset(headers):
-            return "new"
-        else:
-            return "old"
+        return available
     except Exception:
-        return "old"
+        return {"has_cards": False, "has_cashiers": False}
 
 def run_app():
     file_path = file_entry.get()
@@ -31,25 +26,27 @@ def run_app():
         messagebox.showerror("Error", "Please select an Excel file.")
         return
 
-    schema_type = detect_schema(file_path)
+    available = detect_available_fields(file_path)
 
     try:
-        if schema_type == "new":
+        top_cards = None
+        top_cashiers = None
+
+        if available["has_cards"]:
             try:
                 top_cards = int(cards_entry.get())
             except ValueError:
                 messagebox.showerror("Error", "Please enter a valid number for Top Cards.")
                 return
-            top_cashiers = None
-        else:
+
+        if available["has_cashiers"]:
             try:
-                top_cards = int(cards_entry.get())
                 top_cashiers = int(cashiers_entry.get())
             except ValueError:
-                messagebox.showerror("Error", "Please enter valid numbers for Top Cards and Top Cashiers.")
+                messagebox.showerror("Error", "Please enter a valid number for Top Cashiers.")
                 return
 
-        # Process file with encryption option
+        # Process file
         output_folder, last_output_file, password = process_file(
             file_path,
             top_n_cards=top_cards,
@@ -62,17 +59,22 @@ def run_app():
         preview_text.delete(1.0, tk.END)
         preview_text.insert(tk.END, "=== Report Summary Preview ===\n\n")
         preview_text.insert(tk.END, f"Source File: {os.path.basename(file_path)}\n")
-        preview_text.insert(tk.END, f"Schema Type: {'New Schema' if schema_type == 'new' else 'Old Schema'}\n")
-        preview_text.insert(tk.END, f"Top N Cards: {top_cards}\n")
-        if schema_type == "old":
+
+        if available["has_cards"]:
+            preview_text.insert(tk.END, f"Top N Cards: {top_cards}\n")
+
+        if available["has_cashiers"]:
             preview_text.insert(tk.END, f"Top N Cashiers: {top_cashiers}\n")
+
         preview_text.insert(tk.END, f"Output Folder: {output_folder}\n")
         preview_text.insert(tk.END, f"Last Generated File: {os.path.basename(last_output_file)}\n")
+
         if encrypt_var.get():
             preview_text.insert(tk.END, "Encryption: ENABLED\n")
             preview_text.insert(tk.END, "(Password saved in password_log.txt)\n")
         else:
             preview_text.insert(tk.END, "Encryption: DISABLED\n")
+
         preview_text.config(state="disabled")
 
         # Enable open button
@@ -91,19 +93,22 @@ def browse_file():
     file_entry.delete(0, tk.END)
     file_entry.insert(0, file_path)
 
-    # Dynamically update input fields based on schema
-    schema_type = detect_schema(file_path)
+    # Dynamically update input fields based on available columns
+    available = detect_available_fields(file_path)
 
-    if schema_type == "new":
+    if available["has_cards"]:
         cards_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
         cards_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
-        cashiers_label.grid_remove()
-        cashiers_entry.grid_remove()
     else:
-        cards_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        cards_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        cards_label.grid_remove()
+        cards_entry.grid_remove()
+
+    if available["has_cashiers"]:
         cashiers_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
         cashiers_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+    else:
+        cashiers_label.grid_remove()
+        cashiers_entry.grid_remove()
 
 def open_output_file(file_path):
     """Open the output Excel file directly."""
