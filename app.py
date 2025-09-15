@@ -58,7 +58,8 @@ def run_app():
             top_n_cards=top_cards,
             top_n_cashiers=top_cashiers,
             encrypt=encrypt_var.get(),
-            separate_cards=separate_var.get()
+            separate_cards=separate_var.get(),
+            include_intervals=interval_var.get()  # NEW: pass transaction interval choice
         )
 
         # Show report summary
@@ -86,6 +87,11 @@ def run_app():
             preview_text.insert(tk.END, "Card Separation: ENABLED (8880 = Blue, 8881 = Yellow)\n")
         else:
             preview_text.insert(tk.END, "Card Separation: DISABLED\n")
+
+        if interval_var.get():
+            preview_text.insert(tk.END, "Transaction Intervals: INCLUDED\n")
+        else:
+            preview_text.insert(tk.END, "Transaction Intervals: EXCLUDED\n")
 
         preview_text.config(state="disabled")
 
@@ -145,7 +151,6 @@ def browse_file_tab2():
 
     try:
         df = pd.read_excel(file_path)
-        # Keep card_no as string if present
         if "card_no" in df.columns:
             df["card_no"] = df["card_no"].astype(str)
 
@@ -155,7 +160,6 @@ def browse_file_tab2():
         card_dropdown["values"] = card_values_full
         cashier_dropdown["values"] = cashier_values_full
 
-        # re-enable both
         card_dropdown.config(state="normal")
         cashier_dropdown.config(state="normal")
         card_var.set("")
@@ -178,21 +182,16 @@ def on_cashier_selected(event):
         card_dropdown.config(state="normal")
 
 def filter_card_list(event):
-    """Filter card dropdown values live as user types, keep dropdown open without blocking typing."""
     value = card_var.get().lower()
     filtered = [v for v in card_values_full if value in str(v).lower()]
     card_dropdown["values"] = filtered
-
-    # Reopen dropdown after typing, but don't steal focus
     if filtered:
         card_dropdown.after(50, lambda: card_dropdown.event_generate("<Down>"))
 
 def filter_cashier_list(event):
-    """Filter cashier dropdown values live as user types, keep dropdown open without blocking typing."""
     value = cashier_var.get().lower()
     filtered = [v for v in cashier_values_full if value in str(v).lower()]
     cashier_dropdown["values"] = filtered
-
     if filtered:
         cashier_dropdown.after(50, lambda: cashier_dropdown.event_generate("<Down>"))
 
@@ -233,7 +232,7 @@ notebook.pack(fill="both", expand=True)
 tab1 = ttk.Frame(notebook)
 notebook.add(tab1, text="Generate Top Cards/Cashiers")
 
-# File input (tab1)
+# File input
 tk.Label(tab1, text="Excel File:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
 file_frame = tk.Frame(tab1)
 file_frame.grid(row=0, column=1, columnspan=2, padx=5, pady=5, sticky="we")
@@ -269,12 +268,16 @@ options_frame.grid(row=4, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
 encrypt_var = tk.BooleanVar()
 separate_var = tk.BooleanVar()
+interval_var = tk.BooleanVar()  # NEW: transaction intervals checkbox
 
 encrypt_checkbox = tk.Checkbutton(options_frame, text="Encrypt Output File", variable=encrypt_var)
 encrypt_checkbox.pack(side="left", padx=(0, 15))
 
 separate_checkbox = tk.Checkbutton(options_frame, text="Separate Card/Cashier", variable=separate_var)
-separate_checkbox.pack(side="left")
+separate_checkbox.pack(side="left", padx=(0, 15))
+
+interval_checkbox = tk.Checkbutton(options_frame, text="Include Transaction Intervals", variable=interval_var)
+interval_checkbox.pack(side="left")
 
 run_button = tk.Button(tab1, text="Generate Report", command=run_app, bg="green", fg="white")
 run_button.grid(row=5, column=0, columnspan=3, pady=10)
