@@ -203,9 +203,103 @@ def process_dynamic_schema(df, output_file, top_n_cards=20, top_n_cashiers=20, s
                     card_summary.to_excel(writer, sheet_name="TopCards", index=False)
 
         if "cashier" in df.columns and date_col:
-            cashier_summary = summarize_entities(df, "cashier", date_col=date_col, top_n=top_n_cashiers, include_intervals=include_intervals)
+            cashier_summary = summarize_entities(
+                df, "cashier", date_col=date_col,
+                top_n=top_n_cashiers, include_intervals=include_intervals
+            )
             if not cashier_summary.empty:
-                cashier_summary.to_excel(writer, sheet_name="TopCashiers", index=False)
+                expanded_rows = []
+                cols_to_keep = [
+                    "Total Transactions",
+                    "First Transaction",
+                    "Last Transaction",
+                    "Cards List",
+                    "Sum of Transaction Total"
+                ]
+                entity_col_name = "Cashier"  # column name from summarize_entities
+
+                # Ensure consistency
+                df["card_no"] = df["card_no"].astype(str)
+                df["cashier"] = df["cashier"].astype(str)
+
+                # Decide which transaction column to sum
+                txn_col = "trans_total" if "trans_total" in df.columns else (
+                    "transaction_amount" if "transaction_amount" in df.columns else None
+                )
+
+                # Precompute stats per cashier-card pair
+                agg_dict = {
+                    "Total_Transactions": ("card_no", "count"),
+                    "First_Transaction": (date_col, "min"),
+                    "Last_Transaction": (date_col, "max"),
+                }
+                if txn_col:
+                    agg_dict["Sum_Transaction_Total"] = (txn_col, "sum")
+
+                card_stats = (
+                    df.groupby(["cashier", "card_no"])
+                    .agg(**agg_dict)
+                    .to_dict("index")
+                )
+
+                for _, row in cashier_summary.iterrows():
+                    if "Cards List" in row and row["Cards List"]:
+                        cards = [c.strip() for c in row["Cards List"].split(",")]
+
+                        cashier_name = str(row[entity_col_name]).strip()
+
+                        # Attempt to match cashier from df (case-insensitive)
+                        matches = df[df["cashier"].str.strip().str.lower() == cashier_name.lower()]["cashier"].unique()
+                        if len(matches) > 0:
+                            raw_cashier_value = matches[0]
+                        else:
+                            raw_cashier_value = cashier_name  # fallback
+
+                        expanded_rows.append(row)
+
+                        for card in cards:
+                            new_row = row.copy()
+                            # Blank out all columns except key ones
+                            for col in row.index:
+                                if col not in cols_to_keep:
+                                    new_row[col] = None
+
+                                # Fill card-level stats
+                                new_row["Cards List"] = card
+                                stats = card_stats.get((raw_cashier_value, card), {})
+                                new_row["Total Transactions"] = stats.get("Total_Transactions", 0)
+                                new_row["First Transaction"] = stats.get("First_Transaction", None)
+                                new_row["Last Transaction"] = stats.get("Last_Transaction", None)
+                                if txn_col:
+                                    new_row["Sum of Transaction Total"] = stats.get("Sum_Transaction_Total", 0)
+
+                            expanded_rows.append(new_row)
+                    else:
+                        expanded_rows.append(row)
+
+                expanded_df = pd.DataFrame(expanded_rows)
+                expanded_df.to_excel(writer, sheet_name="TopCashiers", index=False)
+
+                # Apply highlighting with openpyxl
+                try:
+                    wb = load_workbook(writer.path)
+                    ws = wb["TopCashiers"]
+
+                    cashier_fill = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")  # gold highlight
+
+                    last_cashier = None
+                    for row_idx, row in enumerate(expanded_df.itertuples(index=False), start=2):  # row 1 is header
+                        current_cashier = getattr(row, entity_col_name, None)
+                        if current_cashier and current_cashier != last_cashier:
+                            # Highlight first row of each cashier group
+                            for col_idx in range(1, ws.max_column + 1):
+                                ws.cell(row=row_idx, column=col_idx).fill = cashier_fill
+                            last_cashier = current_cashier
+
+                    wb.save(writer.path)
+                except Exception as e:
+                    print(f"Highlighting failed: {e}")
+
 
     if separate_cards:
         try:
